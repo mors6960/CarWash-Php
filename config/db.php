@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
-$dotenv = Dotenv\Dotenv::createImmutable(__DIR__ . '/..');
-$dotenv->load();
-$dotenv->required(['DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER'])->notEmpty();
+if (file_exists(__DIR__ . '/../.env')) {
+    $dotenv = Dotenv\Dotenv::createImmutable(__DIR__ . '/..');
+    $dotenv->load();
+}
+foreach (getenv() ?: [] as $k => $v) { if (empty($_ENV[$k])) $_ENV[$k] = $v; }
 
 function getDB(): PDO
 {

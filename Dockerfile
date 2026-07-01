@@ -15,3 +15,6 @@ RUN composer install --no-dev --optimize-autoloader
 EXPOSE 8100
 
 CMD ["php", "-S", "0.0.0.0:8100", "router.php"]
+
+# Cron ke liye (optional)
+# CMD ["php", "cron/sync.php"]
