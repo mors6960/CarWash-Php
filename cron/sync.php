@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-// Only allow CLI execution — never via web
-if (php_sapi_name() !== 'cli') {
+// Allow CLI or internal web calls via router only
+if (php_sapi_name() !== 'cli' && ($_SERVER['REQUEST_URI'] ?? '') !== '/cron/sync') {
     http_response_code(403);
     exit('Forbidden');
 }
