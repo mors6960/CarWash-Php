@@ -1,0 +1,15 @@
+{
+    "name": "carwash/api",
+    "description": "Car Wash BI Dashboard API",
+    "type": "project",
+    "authors": [
+        {
+            "name": "mors6960",
+            "email": "mors6960@gmail.com"
+        }
+    ],
+    "require": {
+        "guzzlehttp/guzzle": "^7.13",
+        "vlucas/phpdotenv": "^5.6"
+    }
+}
