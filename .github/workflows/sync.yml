@@ -1,0 +1,18 @@
+name: Daily Data Sync
+
+on:
+  schedule:
+    - cron: '0 13 * * *'  # Roz 1 PM UTC = 6:30 PM IST
+  workflow_dispatch:        # Manual trigger bhi kar sakte ho
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger Render Sync
+        run: |
+          curl -s -X POST \
+            -H "X-Api-Key: ${{ secrets.API_KEY }}" \
+            "https://carwash-php.onrender.com/cron/sync"
+        timeout-minutes: 10
