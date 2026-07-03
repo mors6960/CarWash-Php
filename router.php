@@ -15,7 +15,7 @@ if ($uri === '/' || $uri === '/health') {
     require __DIR__ . '/cron/sync.php';
     $output = ob_get_clean();
     echo json_encode(['status' => 'ok', 'output' => $output]);
-} elseif (preg_match('/^\/api\/(transactions|memberships|employees|weather|sites)(\.php)?$/', $uri, $m)) {
+} elseif (preg_match('/^\/api\/(transactions|memberships|employees|employees_daily|weather|weather_forecast|sites|expenses|redemptions)(\.php)?$/', $uri, $m)) {
     require __DIR__ . '/api/' . $m[1] . '.php';
 } else {
     http_response_code(404);
