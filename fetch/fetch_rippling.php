@@ -155,7 +155,10 @@ try {
         'endDate'   => $endDt->format('Y-m-d'),
     ]);
 
-    $stmt = $pdo->prepare("
+    // When rippling_entry_id is present use it as the unique key (fast path).
+    // When it is NULL, fall back to INSERT IGNORE keyed on (rippling_id, date)
+    // so the same day is never double-counted.
+    $stmtById = $pdo->prepare("
         INSERT INTO rippling_time_entries
             (rippling_entry_id, rippling_id, date, hours_worked, overtime_hours,
              pay_period_start, pay_period_end, site_code, fetched_at)
@@ -168,10 +171,23 @@ try {
             fetched_at     = NOW()
     ");
 
+    $stmtByDay = $pdo->prepare("
+        INSERT IGNORE INTO rippling_time_entries
+            (rippling_id, date, hours_worked, overtime_hours,
+             pay_period_start, pay_period_end, site_code, fetched_at)
+        SELECT :rippling_id, :date, :hours_worked, :overtime_hours,
+               :pay_period_start, :pay_period_end, :site_code, NOW()
+        FROM DUAL
+        WHERE NOT EXISTS (
+            SELECT 1 FROM rippling_time_entries
+            WHERE rippling_id = :rippling_id2 AND date = :date2
+        )
+    ");
+
     foreach ($entries as $entry) {
         $wId     = $entry['worker_id'] ?? null;
         $entryId = $entry['id']        ?? null;
-        if (!$wId || !$entryId) continue;
+        if (!$wId) continue;
 
         $entryDate = null;
         if (!empty($entry['start_time'])) {
@@ -182,16 +198,37 @@ try {
         $summary = $entry['time_entry_summary'] ?? [];
         $payPer  = $entry['pay_period'] ?? [];
 
-        $stmt->execute([
-            ':rippling_entry_id' => $entryId,
-            ':rippling_id'       => $wId,
-            ':date'              => $entryDate,
-            ':hours_worked'      => (float) ($summary['regular_hours']      ?? 0),
-            ':overtime_hours'    => (float) ($summary['over_time_hours']    ?? 0),
-            ':pay_period_start'  => $payPer['start_date'] ?? null,
-            ':pay_period_end'    => $payPer['end_date']   ?? null,
-            ':site_code'         => 'STOCK',
-        ]);
+        $regularHours  = (float) ($summary['regular_hours']   ?? 0);
+        $overtimeHours = (float) ($summary['over_time_hours'] ?? 0);
+        $ppStart       = $payPer['start_date'] ?? null;
+        $ppEnd         = $payPer['end_date']   ?? null;
+
+        if ($entryId !== null) {
+            // Has a real entry ID — upsert on the UNIQUE rippling_entry_id key
+            $stmtById->execute([
+                ':rippling_entry_id' => $entryId,
+                ':rippling_id'       => $wId,
+                ':date'              => $entryDate,
+                ':hours_worked'      => $regularHours,
+                ':overtime_hours'    => $overtimeHours,
+                ':pay_period_start'  => $ppStart,
+                ':pay_period_end'    => $ppEnd,
+                ':site_code'         => 'STOCK',
+            ]);
+        } else {
+            // No entry ID — insert only if (rippling_id, date) not yet present
+            $stmtByDay->execute([
+                ':rippling_id'      => $wId,
+                ':rippling_id2'     => $wId,
+                ':date'             => $entryDate,
+                ':date2'            => $entryDate,
+                ':hours_worked'     => $regularHours,
+                ':overtime_hours'   => $overtimeHours,
+                ':pay_period_start' => $ppStart,
+                ':pay_period_end'   => $ppEnd,
+                ':site_code'        => 'STOCK',
+            ]);
+        }
         $entryCount++;
     }
 

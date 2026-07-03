@@ -25,30 +25,37 @@ try {
         exit;
     }
 
-    // One row per employee per day — Rippling may have multiple entries per day,
-    // so GROUP BY (rippling_id + date) with SUM to collapse them into one row.
+    // One row per employee per day.
+    // Subquery picks MIN(id) per (rippling_id, date) to guard against any
+    // future duplicate inserts (e.g. when rippling_entry_id is NULL and the
+    // UNIQUE key cannot de-dup automatically).
     $stmt = $pdo->prepare("
         SELECT
-            t.date                                                              AS work_date,
+            t.date                                                                AS work_date,
             r.first_name,
-            r.role_name                                                         AS role,
+            r.role_name                                                           AS role,
             r.department,
-            COALESCE(r.hourly_rate, 0)                                          AS pay_rate,
-            SUM(COALESCE(t.hours_worked, 0))                                    AS regular_hours,
-            SUM(COALESCE(t.overtime_hours, 0))                                  AS overtime_hours,
-            SUM(COALESCE(t.hours_worked, 0) + COALESCE(t.overtime_hours, 0))   AS total_hours,
+            COALESCE(r.hourly_rate, 0)                                            AS pay_rate,
+            COALESCE(t.hours_worked,   0)                                         AS regular_hours,
+            COALESCE(t.overtime_hours, 0)                                         AS overtime_hours,
+            COALESCE(t.hours_worked, 0) + COALESCE(t.overtime_hours, 0)          AS total_hours,
             ROUND(
-                SUM(
-                    (COALESCE(t.hours_worked, 0) * COALESCE(r.hourly_rate, 0))
-                    + (COALESCE(t.overtime_hours, 0) * COALESCE(r.hourly_rate, 0) * 1.5)
-                ),
+                (COALESCE(t.hours_worked,   0) * COALESCE(r.hourly_rate, 0))
+              + (COALESCE(t.overtime_hours, 0) * COALESCE(r.hourly_rate, 0) * 1.5),
                 2
-            )                                                                   AS total_labor_cost
-        FROM rippling_time_entries t
+            )                                                                     AS total_labor_cost
+        FROM (
+            SELECT *
+            FROM rippling_time_entries
+            WHERE id IN (
+                SELECT MIN(id)
+                FROM rippling_time_entries
+                GROUP BY rippling_id, date
+            )
+        ) t
         JOIN employees_rippling r ON r.rippling_id = t.rippling_id
         WHERE t.date BETWEEN :start AND :end
           AND r.is_active = 1
-        GROUP BY t.rippling_id, t.date, r.first_name, r.role_name, r.department, r.hourly_rate
         ORDER BY t.date ASC, r.first_name ASC
     ");
 
