@@ -30,20 +30,25 @@ try {
     $end   = $endDate   . ' 23:59:59';
 
     // ── All memberships (for Power BI filtering) ─────────────────────────────
+    // city + zip joined from customers table (Sonny's fields: city, postal_code).
+    // Defaults to 'Stockton' / null when customer address is not on file.
     $allStmt = $pdo->query("
         SELECT
-            account_id,
-            plan_name,
-            customer_id,
-            billing_site_code,
-            status,
-            status_name,
-            signup_date,
-            cancel_date,
-            next_bill_date,
-            billing_amount
-        FROM recurring_accounts
-        ORDER BY signup_date DESC
+            ra.account_id,
+            ra.plan_name,
+            ra.customer_id,
+            ra.billing_site_code,
+            ra.status,
+            ra.status_name,
+            ra.signup_date,
+            ra.cancel_date,
+            ra.next_bill_date,
+            ra.billing_amount,
+            COALESCE(NULLIF(c.city, ''), 'Stockton') AS city,
+            NULLIF(c.postal_code, '')                AS zip
+        FROM recurring_accounts ra
+        LEFT JOIN customers c ON ra.customer_id = c.customer_id
+        ORDER BY ra.signup_date DESC
     ");
     $all = $allStmt->fetchAll();
 

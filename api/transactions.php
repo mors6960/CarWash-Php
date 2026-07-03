@@ -30,6 +30,11 @@ try {
     $end   = $endDate   . ' 23:59:59';
 
     // ── Raw transactions ─────────────────────────────────────────────────────
+    // customer_name: Sonny's field is 'customerName' on /transaction/{id} detail.
+    //   Falls back to customers table (first_name + last_name) when the detail
+    //   enrichment hasn't run yet for older records.
+    // cashier_name: Sonny's field is 'employeeCashier' on /transaction/{id} detail.
+    //   No separate lookup table available — null until detail enrichment runs.
     $txStmt = $pdo->prepare("
         SELECT
             t.trans_id,
@@ -39,11 +44,15 @@ try {
             t.type,
             t.complete_date,
             t.customer_id,
-            t.customer_name,
+            COALESCE(
+                t.customer_name,
+                NULLIF(TRIM(CONCAT_WS(' ', c.first_name, c.last_name)), '')
+            )                       AS customer_name,
             t.cashier_name,
             t.is_recurring_payment,
             t.is_recurring_sale
         FROM transactions t
+        LEFT JOIN customers c ON t.customer_id = c.customer_id
         WHERE t.complete_date BETWEEN :start AND :end
         ORDER BY t.complete_date DESC
     ");
